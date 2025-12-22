@@ -65,7 +65,6 @@ void *receive_thread(void *arg)
     return NULL;
 }
 
-// --- HÀM MAIN ---
 int main()
 {
     // 1. KẾT NỐI SERVER
@@ -104,10 +103,8 @@ int main()
             pkt.type = MSG_LOGIN;
             sprintf(pkt.data, "%s %s", u, p);
 
-            // Sửa lỗi tên biến: sockfd -> sock_fd
             send(sock_fd, &pkt, sizeof(Packet), 0);
 
-            // Chờ phản hồi (Hack nhẹ để thread kia kịp cập nhật state)
             sleep(1);
         }
 
@@ -145,11 +142,9 @@ int main()
                 strcpy(chat_pkt.data, input + 2); // Bỏ chữ "c "
                 send(sock_fd, &chat_pkt, sizeof(Packet), 0);
             }
-            // NẾU LÀ ĐÁNH CỜ (10 10)
             else
             {
                 int x, y;
-                // Sửa lỗi logic: Phải sscanf từ biến input vừa nhập
                 if (sscanf(input, "%d %d", &x, &y) == 2)
                 {
                     Packet move_pkt;
@@ -167,7 +162,6 @@ int main()
         }
     } // Kết thúc while
 
-    // Đã xóa return 0 ở trong vòng lặp -> Code chạy vô tận đến khi tắt
     close(sock_fd);
     return 0;
 }
