@@ -1,0 +1,17 @@
+khanh1 111111 khanh1 130
+khanh2 111111 khanh2 70
+khanh3 111111 khanh1 130
+khanh4 111111 khanh2 70
+khanh5 111111 khanh1 130
+khanh6 111111 khanh2 70
+khanh7 111111 khanh1 130
+khanh8 111111 khanh2 70
+khanh9 111111 khanh1 130
+khanh10 111111 khanh2 70
+khanh11 111111 khanh1 130
+khanh12 111111 khanh2 70
+khanh13 111111 khanh1 130
+khanh14 111111 khanh2 70
+
+
+

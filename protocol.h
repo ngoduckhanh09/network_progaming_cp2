@@ -20,6 +20,9 @@ typedef enum
     MSG_LOGIN_SUCCESS, //
     MSG_LOGIN_FAIL,    //
     MSG_PLAY_REQ,      // Kết thúc (Thắng/Thua)
+    MSG_PLAY_AGAIN,
+    MSG_LEADERBOARD,
+    MSG_CANCEL_FIND,
 } MessageType;
 
 //  CẤU TRÚC GÓI TIN
@@ -29,6 +32,7 @@ typedef struct
     int player_id;    // ID người chơi (Để biết ai gửi)
     int x;            // Tọa độ dòng (Row)
     int y;            // Tọa độ cột (Col)
+    int score;        // <--- THÊM BIẾN NÀY (Lưu điểm số/Elo)
     char data[256];   // Dữ liệu text (Username, Chat, Thông báo...)
 } Packet;
 

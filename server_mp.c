@@ -7,21 +7,65 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "protocol.h" // Protocol chung
-#include "auth.h"     // Logic đăng nhập
-#include "game.h"     // Logic game
+#include "protocol.h"
+#include "auth.h"
+#include "game.h"
+
+#define MAX_CLIENTS 100 // Tối đa 100 người online cùng lúc
 
 // Cấu trúc quản lý Client
 typedef struct
 {
     int socket;
-    GameSession *session; // Trỏ đến bàn cờ đang chơi
-    int player_id;        // 1 (X) hoặc 2 (O)
+    GameSession *session;
+    int player_id;
+    char username[32]; // Tên đăng nhập
 } ClientInfo;
 
-// Biến toàn cục quản lý ghép cặp
-ClientInfo *waiting_client = NULL;
+// Biến toàn cục
+ClientInfo *waiting_client = NULL;       // Người đang đợi tìm trận
+ClientInfo *online_clients[MAX_CLIENTS]; // Danh sách người đang online
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
+// --- HÀM HỖ TRỢ QUẢN LÝ ONLINE ---
+// Kiểm tra xem username này đã online chưa
+int is_user_online(char *username)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (online_clients[i] != NULL && strcmp(online_clients[i]->username, username) == 0)
+        {
+            return 1; // Đang online
+        }
+    }
+    return 0; // Chưa online
+}
+
+// Thêm người vào danh sách online
+void add_online_user(ClientInfo *client)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (online_clients[i] == NULL)
+        {
+            online_clients[i] = client;
+            break;
+        }
+    }
+}
+
+// Xóa người khỏi danh sách online
+void remove_online_user(ClientInfo *client)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (online_clients[i] == client)
+        {
+            online_clients[i] = NULL;
+            break;
+        }
+    }
+}
 
 // Luồng xử lý từng Client
 void *client_handler(void *arg)
@@ -32,51 +76,93 @@ void *client_handler(void *arg)
 
     while ((n = recv(me->socket, &pkt, sizeof(Packet), 0)) > 0)
     {
-
-        // --- 1. XỬ LÝ ĐĂNG NHẬP (Gọi auth.c) ---
+        // --- 1. XỬ LÝ ĐĂNG NHẬP ---
         if (pkt.type == MSG_LOGIN)
         {
             char u[32], p[32];
             sscanf(pkt.data, "%s %s", u, p);
 
             Packet res;
-            if (check_login(u, p))
-            { // Gọi hàm từ auth.c
+
+            pthread_mutex_lock(&lock); // Khóa để kiểm tra online an toàn
+            if (is_user_online(u))
+            {
+                res.type = MSG_LOGIN_FAIL;
+                strcpy(res.data, "Tai khoan nay dang online!");
+            }
+            else if (check_login(u, p))
+            {
                 res.type = MSG_LOGIN_SUCCESS;
-                strcpy(res.data, "Dang nhap thanh cong!");
+                // Lấy điểm hiện tại
+                int score = get_user_score(u);
+
+                // Mẹo: Dùng trường 'x' của Packet để gửi điểm số (đỡ phải parse chuỗi)
+                res.score = score; // <--- Sửa: Gán điểm vào trường score
+
+                sprintf(res.data, "Login OK! Diem: %d", score);
+
+                strcpy(me->username, u);
+                add_online_user(me);
             }
             else
             {
                 res.type = MSG_LOGIN_FAIL;
-                strcpy(res.data, "Sai mat khau (pass: 123)");
+                strcpy(res.data, "Sai tai khoan hoac mat khau!");
             }
+            pthread_mutex_unlock(&lock);
+
             send(me->socket, &res, sizeof(Packet), 0);
         }
-
-        // --- 2. XỬ LÝ TÌM TRẬN ---
+        // --- XỬ LÝ ĐĂNG KÝ ---
+        else if (pkt.type == MSG_REGISTER)
+        {
+            char u[32], p[32], n[32];
+            if (sscanf(pkt.data, "%s %s %s", u, p, n) == 3)
+            {
+                Packet res;
+                if (register_user(u, p, n))
+                {
+                    res.type = MSG_LOGIN_SUCCESS;
+                    strcpy(res.data, "Dang ky thanh cong! Vui long dang nhap.");
+                    // Đăng ký xong chưa tự đăng nhập, user phải login lại
+                }
+                else
+                {
+                    res.type = MSG_LOGIN_FAIL;
+                    strcpy(res.data, "Tai khoan da ton tai!");
+                }
+                send(me->socket, &res, sizeof(Packet), 0);
+            }
+        }
+        // --- CÁC XỬ LÝ KHÁC (GIỮ NGUYÊN) ---
+        else if (pkt.type == MSG_CANCEL_FIND)
+        {
+            pthread_mutex_lock(&lock);
+            if (waiting_client == me)
+            {
+                waiting_client = NULL;
+                printf("Client %s da huy tim tran.\n", me->username);
+            }
+            pthread_mutex_unlock(&lock);
+        }
         else if (pkt.type == MSG_PLAY_REQ)
         {
             pthread_mutex_lock(&lock);
             if (waiting_client == NULL)
             {
-                // Chưa có ai -> Mình vào hàng đợi
                 waiting_client = me;
-
                 Packet res = {.type = MSG_WAIT};
                 strcpy(res.data, "Dang tim doi thu...");
                 send(me->socket, &res, sizeof(Packet), 0);
             }
             else
             {
-                // Đã có người đợi -> Ghép cặp!
                 ClientInfo *opponent = waiting_client;
-                waiting_client = NULL; // Reset hàng đợi
+                waiting_client = NULL;
 
-                // Tạo GameSession mới (Gọi game.c)
                 GameSession *new_session = malloc(sizeof(GameSession));
                 init_game(new_session);
 
-                // Setup thông tin phiên chơi
                 new_session->p1_socket = opponent->socket;
                 new_session->p2_socket = me->socket;
 
@@ -86,84 +172,129 @@ void *client_handler(void *arg)
                 opponent->player_id = 1; // X
                 me->player_id = 2;       // O
 
-                // Gửi thông báo START cho cả 2
-                // 1. Gửi cho người đợi (opponent) -> Báo là Player 1 (X)
+                // Gửi MSG_START
                 Packet pkt1;
-                memset(&pkt1, 0, sizeof(Packet)); // Xóa sạch dữ liệu rác
+                memset(&pkt1, 0, sizeof(Packet));
                 pkt1.type = MSG_START;
-                pkt1.player_id = 1; // <--- QUAN TRỌNG: Gán ID = 1
-                strcpy(pkt1.data, "Game Start! Ban la X");
+                pkt1.player_id = 1;
+                sprintf(pkt1.data, "Doi thu: %s", me->username); // Gửi tên đối thủ
                 send(opponent->socket, &pkt1, sizeof(Packet), 0);
 
-                // 2. Gửi cho người mới vào (me) -> Báo là Player 2 (O)
                 Packet pkt2;
-                memset(&pkt2, 0, sizeof(Packet)); // Xóa sạch dữ liệu rác
+                memset(&pkt2, 0, sizeof(Packet));
                 pkt2.type = MSG_START;
-                pkt2.player_id = 2; // <--- QUAN TRỌNG: Gán ID = 2
-                strcpy(pkt2.data, "Game Start! Ban la O");
+                pkt2.player_id = 2;
+                sprintf(pkt2.data, "Doi thu: %s", opponent->username); // Gửi tên đối thủ
                 send(me->socket, &pkt2, sizeof(Packet), 0);
 
-                printf("Da ghep cap: %d (X) vs %d (O)\n", opponent->socket, me->socket);
+                printf("Tran dau: %s (X) vs %s (O)\n", opponent->username, me->username);
             }
             pthread_mutex_unlock(&lock);
         }
-
-        // --- 3. XỬ LÝ NƯỚC ĐI (Gọi game.c) ---
         else if (pkt.type == MSG_MOVE)
         {
             if (me->session == NULL)
                 continue;
             GameSession *s = me->session;
 
-            // Kiểm tra tính hợp lệ
+            // Kiểm tra lượt và ô trống
             if (s->turn != me->player_id)
-                continue; // Chưa đến lượt
+                continue;
             if (s->board[pkt.x][pkt.y] != 0)
-                continue; // Ô đã đánh
-
-            // Update bàn cờ server
+                continue;
             s->board[pkt.x][pkt.y] = me->player_id;
+            // 1. Cập nhật bàn cờ
+            pkt.player_id = me->player_id;
+            // ----------------------------------
 
-            // Kiểm tra thắng thua (Gọi hàm từ game.c)
+            // 2. Gửi ngay nước đi này cho đối thủ
+
+            // 2. QUAN TRỌNG: Gửi ngay nước đi này cho đối thủ (dù thắng hay chưa)
+            // Để màn hình đối thủ hiện nước cờ này lên trước khi hiện bảng kết quả.
+            int opponent_sock = (me->player_id == 1) ? s->p2_socket : s->p1_socket;
+            send(opponent_sock, &pkt, sizeof(Packet), 0);
+
+            // 3. Kiểm tra thắng thua
             int win = check_win(s->board, pkt.x, pkt.y, me->player_id);
-
-            // Gửi update cho cả 2 người
-            Packet update = pkt;
-            update.player_id = me->player_id;
-            send(s->p1_socket, &update, sizeof(Packet), 0);
-            send(s->p2_socket, &update, sizeof(Packet), 0);
-
             if (win)
             {
-                Packet end = {.type = MSG_END};
-                sprintf(end.data, "Nguoi choi %s chien thang!", (me->player_id == 1) ? "X" : "O");
-                send(s->p1_socket, &end, sizeof(Packet), 0);
-                send(s->p2_socket, &end, sizeof(Packet), 0);
-                // Logic dọn dẹp bộ nhớ game session nên đặt ở đây
+                // --- XỬ LÝ KHI THẮNG ---
+
+                // Tìm thông tin người thua để trừ điểm
+                // (opponent_sock chính là loser_sock)
+                char *loser_name = NULL;
+                for (int i = 0; i < MAX_CLIENTS; i++)
+                {
+                    if (online_clients[i] && online_clients[i]->socket == opponent_sock)
+                    {
+                        loser_name = online_clients[i]->username;
+                        break;
+                    }
+                }
+
+                if (loser_name)
+                {
+                    update_game_result(me->username, loser_name);
+                    int winner_score = get_user_score(me->username);
+                    int loser_score = get_user_score(loser_name);
+
+                    // Gửi MSG_END cho người thắng
+                    Packet end_winner;
+                    memset(&end_winner, 0, sizeof(Packet));
+                    end_winner.type = MSG_END;
+                    end_winner.score = winner_score; // <--- Dùng biến score (đã thêm vào struct)
+                    sprintf(end_winner.data, "BAN THANG! (+10 diem). Tong: %d", winner_score);
+                    send(me->socket, &end_winner, sizeof(Packet), 0);
+
+                    // Gửi MSG_END cho người thua
+                    Packet end_loser;
+                    memset(&end_loser, 0, sizeof(Packet));
+                    end_loser.type = MSG_END;
+                    end_loser.score = loser_score; // <--- Dùng biến score
+                    sprintf(end_loser.data, "%s da thang. \nBan bi tru 10 diem. Tong: %d", me->username, loser_score);
+                    send(opponent_sock, &end_loser, sizeof(Packet), 0);
+                }
+
+                // (Tùy chọn) Reset session hoặc dọn dẹp ở đây nếu cần
             }
             else
             {
-                // Đổi lượt
-                s->turn = (s->turn == 1) ? 2 : 1;
+                // --- NẾU CHƯA THẮNG ---
+                // Chỉ cần đổi lượt (Nước đi đã gửi ở bước 2 rồi)
+                s->turn = (me->player_id == 1) ? 2 : 1;
             }
         }
-
-        else if (pkt.type == MSG_CHAT)
+        else if (pkt.type == MSG_LEADERBOARD)
         {
-            if (me->session)
-            {
-                int dest = (me->socket == me->session->p1_socket) ? me->session->p2_socket : me->session->p1_socket;
-                send(dest, &pkt, sizeof(Packet), 0);
-            }
+            Packet res;
+            res.type = MSG_LEADERBOARD; // Tạm dùng msg CHAT để hiển thị text
+            get_leaderboard(res.data);
+            send(me->socket, &res, sizeof(Packet), 0);
         }
-
         else if (pkt.type == MSG_QUIT)
         {
             break;
         }
     }
 
-    // --- Cleanup khi client thoát ---
+    // --- CLEANUP KHI NGẮT KẾT NỐI ---
+    pthread_mutex_lock(&lock);
+
+    // 1. Xóa khỏi danh sách online
+    remove_online_user(me);
+    printf("Client %s da ngat ket noi.\n", me->username);
+
+    // 2. Xóa khỏi hàng đợi nếu đang đợi
+    if (waiting_client == me)
+    {
+        waiting_client = NULL;
+    }
+
+    // 3. Xử lý nếu đang trong trận (Thắng/Thua xử lý sau)
+    // if (me->session) { ... }
+
+    pthread_mutex_unlock(&lock);
+
     close(me->socket);
     free(me);
     return NULL;
@@ -171,6 +302,10 @@ void *client_handler(void *arg)
 
 int main()
 {
+    // Khởi tạo danh sách online
+    for (int i = 0; i < MAX_CLIENTS; i++)
+        online_clients[i] = NULL;
+
     int server_fd;
     struct sockaddr_in address;
 
@@ -200,6 +335,7 @@ int main()
         ClientInfo *new_client = malloc(sizeof(ClientInfo));
         new_client->socket = new_sock;
         new_client->session = NULL;
+        memset(new_client->username, 0, 32); // Xóa tên cũ
 
         pthread_t tid;
         pthread_create(&tid, NULL, client_handler, new_client);

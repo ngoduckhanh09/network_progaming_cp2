@@ -1,7 +1,9 @@
 #ifndef AUTH_H
 #define AUTH_H
 
-// Kiểm tra user/pass. Trả về 1 nếu đúng, 0 nếu sai.
-int check_login(const char *username, const char *password);
-
-#endif // AUTH_H
+int check_login(char *username, char *password);
+int register_user(char *username, char *password, char *name);
+void update_game_result(char *winner, char *loser); // Sửa hàm này
+int get_user_score(char *username);                 // Hàm mới lấy điểm
+void get_leaderboard(char *buffer);                 // Hàm mới lấy BXH
+#endif
