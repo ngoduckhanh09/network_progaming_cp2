@@ -1,1 +1,11 @@
 .vscode/
+SDL2_ttf-2.20.2
+SDL2-2.28.5
+Dockerfile
+game.exe
+libgcc_s_seh-1.dll
+libssp-0.dll
+libstdc++-6.dll
+libwinpthread-1.dll
+SDL2_ttf.dll
+SDL2.dll

@@ -1,17 +1,18 @@
-khanh1 111111 khanh1 130
-khanh2 111111 khanh2 70
-khanh3 111111 khanh1 130
-khanh4 111111 khanh2 70
-khanh5 111111 khanh1 130
+khanh1 111111 khanh1 150
+khanh2 111111 khanh2 20
+khanh3 111111 khanh1 110
+khanh4 111111 khanh2 80
+khanh5 111111 khanh1 110
 khanh6 111111 khanh2 70
 khanh7 111111 khanh1 130
 khanh8 111111 khanh2 70
 khanh9 111111 khanh1 130
 khanh10 111111 khanh2 70
 khanh11 111111 khanh1 130
-khanh12 111111 khanh2 70
+khanh12 111111 khanh20 1000
 khanh13 111111 khanh1 130
 khanh14 111111 khanh2 70
-
-
-
+minh 123 minhkhoaito 90
+khanhdi 1234 khanhdi 120
+quang 1 quang 150
+h3 111111 khanh4 100

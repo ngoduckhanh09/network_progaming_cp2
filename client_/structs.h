@@ -32,6 +32,8 @@ typedef struct
 	char message[100];
 	int score;				// Lưu điểm hiện tại
 	char leaderboard[1024]; // Lưu nội dung bảng xếp hạng nhận từ server
+	char opponentName[32];	// Tên đối thủ
+	int opponentScore;		// Điểm đối thủ
 } App;
 
 #endif

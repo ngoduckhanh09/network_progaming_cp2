@@ -10,7 +10,7 @@
 #include "protocol.h"
 #include "auth.h"
 #include "game.h"
-
+#include <netdb.h>      // Để dùng gethostbyname
 #define MAX_CLIENTS 100 // Tối đa 100 người online cùng lúc
 
 // Cấu trúc quản lý Client
@@ -66,7 +66,71 @@ void remove_online_user(ClientInfo *client)
         }
     }
 }
+void handle_player_quit(ClientInfo *me)
+{
+    if (me->session == NULL)
+        return;
 
+    GameSession *s = me->session;
+    int opp_sock = (me->socket == s->p1_socket) ? s->p2_socket : s->p1_socket;
+
+    // Tìm thông tin đối thủ trong danh sách online
+    ClientInfo *opponent = NULL;
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (online_clients[i] && online_clients[i]->socket == opp_sock)
+        {
+            opponent = online_clients[i];
+            break;
+        }
+    }
+
+    // TRƯỜNG HỢP 1: Game đang diễn ra (Chưa ai thắng) -> XỬ THUA
+    if (s->is_game_over == 0 && opponent != NULL)
+    {
+        // 1. Cập nhật DB: Đối thủ thắng, Mình thua
+        int old_winner_score = get_user_score(opponent->username);
+        int old_loser_score = get_user_score(me->username);
+
+        // 2. Tự tính toán điểm MỚI (Tránh việc đọc file bị chậm)
+        int new_winner_score = old_winner_score + 10;
+        int new_loser_score = old_loser_score - 10;
+        update_game_result(opponent->username, me->username);
+
+        // 2. Gửi thông báo THẮNG cho đối thủ
+        Packet end_pkt;
+        memset(&end_pkt, 0, sizeof(Packet));
+        end_pkt.type = MSG_END;
+        end_pkt.score = new_winner_score;         // Điểm người nhận (Thắng)
+        end_pkt.opponent_score = new_loser_score; // Điểm người kia (Thua)
+        sprintf(end_pkt.data, "Doi thu da thoat. BAN THANG! (+10). Tong: %d", new_winner_score);
+        send(opponent->socket, &end_pkt, sizeof(Packet), 0);
+
+        Packet lose_pkt;
+        memset(&lose_pkt, 0, sizeof(Packet));
+        lose_pkt.type = MSG_END;
+        lose_pkt.score = new_loser_score;           // Điểm người nhận (Thua)
+        lose_pkt.opponent_score = new_winner_score; // Điểm người kia (Thắng)
+        sprintf(lose_pkt.data, "Ban da thoat va bi xu thua (-10). Tong: %d", new_loser_score);
+        send(me->socket, &lose_pkt, sizeof(Packet), 0);
+        // Đánh dấu game đã xong (để tránh trừ điểm lần nữa nếu gọi lại)
+        s->is_game_over = 1;
+    }
+    // TRƯỜNG HỢP 2: Game đã xong -> Chỉ báo đối thủ biết
+    else if (opponent != NULL)
+    {
+        Packet noti;
+        noti.type = MSG_CHAT;
+        strcpy(noti.data, "Doi thu da roi phong.");
+        send(opponent->socket, &noti, sizeof(Packet), 0);
+    }
+
+    // Dọn dẹp session
+    if (opponent)
+        opponent->session = NULL;
+    me->session = NULL;
+    free(s);
+}
 // Luồng xử lý từng Client
 void *client_handler(void *arg)
 {
@@ -171,22 +235,26 @@ void *client_handler(void *arg)
 
                 opponent->player_id = 1; // X
                 me->player_id = 2;       // O
+                int score_opp = get_user_score(opponent->username);
+                int score_me = get_user_score(me->username);
 
-                // Gửi MSG_START
+                // 2. Gửi cho Opponent (Người đợi): Gửi tên và điểm của người vừa vào (ME)
                 Packet pkt1;
                 memset(&pkt1, 0, sizeof(Packet));
                 pkt1.type = MSG_START;
                 pkt1.player_id = 1;
-                sprintf(pkt1.data, "Doi thu: %s", me->username); // Gửi tên đối thủ
+                // Format chuẩn: "Tên Điểm" (Bỏ chữ "Doi thu:" đi để client dễ đọc)
+                sprintf(pkt1.data, "%s %d", me->username, score_me);
                 send(opponent->socket, &pkt1, sizeof(Packet), 0);
 
+                // 3. Gửi cho Me (Người vừa vào): Gửi tên và điểm của người đang đợi (OPPONENT)
                 Packet pkt2;
                 memset(&pkt2, 0, sizeof(Packet));
                 pkt2.type = MSG_START;
                 pkt2.player_id = 2;
-                sprintf(pkt2.data, "Doi thu: %s", opponent->username); // Gửi tên đối thủ
+                // Format chuẩn: "Tên Điểm"
+                sprintf(pkt2.data, "%s %d", opponent->username, score_opp);
                 send(me->socket, &pkt2, sizeof(Packet), 0);
-
                 printf("Tran dau: %s (X) vs %s (O)\n", opponent->username, me->username);
             }
             pthread_mutex_unlock(&lock);
@@ -234,24 +302,33 @@ void *client_handler(void *arg)
 
                 if (loser_name)
                 {
+                    s->is_game_over = 1; // <--- THÊM DÒNG NÀY: Đánh dấu game đã có kết quả
                     update_game_result(me->username, loser_name);
-                    int winner_score = get_user_score(me->username);
-                    int loser_score = get_user_score(loser_name);
+                    int old_winner_score = get_user_score(me->username);
+                    int old_loser_score = get_user_score(loser_name);
 
+                    // 2. Tính điểm MỚI
+                    int new_winner_score = old_winner_score + 10;
+                    int new_loser_score = old_loser_score - 10;
                     // Gửi MSG_END cho người thắng
+                    update_game_result(me->username, loser_name);
+
+                    // 4. Gửi MSG_END cho NGƯỜI THẮNG
                     Packet end_winner;
                     memset(&end_winner, 0, sizeof(Packet));
                     end_winner.type = MSG_END;
-                    end_winner.score = winner_score; // <--- Dùng biến score (đã thêm vào struct)
-                    sprintf(end_winner.data, "BAN THANG! (+10 diem). Tong: %d", winner_score);
+                    end_winner.score = new_winner_score;         // <--- Điểm mới của mình
+                    end_winner.opponent_score = new_loser_score; // <--- [QUAN TRỌNG] Điểm mới của đối thủ
+                    sprintf(end_winner.data, "BAN THANG! (+10 diem). Tong: %d", new_winner_score);
                     send(me->socket, &end_winner, sizeof(Packet), 0);
 
-                    // Gửi MSG_END cho người thua
+                    // 5. Gửi MSG_END cho NGƯỜI THUA
                     Packet end_loser;
                     memset(&end_loser, 0, sizeof(Packet));
                     end_loser.type = MSG_END;
-                    end_loser.score = loser_score; // <--- Dùng biến score
-                    sprintf(end_loser.data, "%s da thang. \nBan bi tru 10 diem. Tong: %d", me->username, loser_score);
+                    end_loser.score = new_loser_score;           // <--- Điểm mới của mình
+                    end_loser.opponent_score = new_winner_score; // <--- [QUAN TRỌNG] Điểm mới của đối thủ
+                    sprintf(end_loser.data, "%s da thang. \nBan bi tru 10 diem. Tong: %d", me->username, new_loser_score);
                     send(opponent_sock, &end_loser, sizeof(Packet), 0);
                 }
 
@@ -275,6 +352,90 @@ void *client_handler(void *arg)
         {
             break;
         }
+        // Trong server_mp.c, thêm vào chuỗi if-else xử lý packet
+        else if (pkt.type == MSG_PLAY_AGAIN)
+        {
+            if (me->session == NULL)
+            {
+                Packet err;
+                memset(&err, 0, sizeof(Packet));
+                err.type = MSG_CHAT; // Dùng MSG_CHAT để hiện thông báo lên màn hình client
+                strcpy(err.data, "Doi thu da thoat, khong the tai dau!");
+                send(me->socket, &err, sizeof(Packet), 0);
+                continue; // Bỏ qua các lệnh dưới
+            }
+
+            pthread_mutex_lock(&lock);
+            GameSession *s = me->session;
+
+            s->rematch_count++; // Tăng số người đồng ý
+
+            if (s->rematch_count >= 2) // Cả 2 đều đồng ý
+            {
+                // 1. Reset game
+                memset(s->board, 0, sizeof(s->board));
+                s->turn = 1;          // Mặc định người chơi 1 đi trước (hoặc random tùy bạn)
+                s->rematch_count = 0; // Reset đếm cho ván sau
+                s->is_game_over = 0;
+                // 2. Thông báo bắt đầu lại cho cả 2
+                Packet startPkt;
+                startPkt.type = MSG_START;
+
+                // Gửi cho P1
+                startPkt.player_id = 1;
+                strcpy(startPkt.data, "Ván mới bắt đầu! Bạn là X");
+                send(s->p1_socket, &startPkt, sizeof(Packet), 0);
+
+                // Gửi cho P2
+                startPkt.player_id = 2;
+                strcpy(startPkt.data, "Ván mới bắt đầu! Bạn là O");
+                send(s->p2_socket, &startPkt, sizeof(Packet), 0);
+            }
+            else
+            {
+                // Nếu mới chỉ có mình mình bấm, thông báo đợi
+                Packet waitPkt;
+                waitPkt.type = MSG_CHAT; // Dùng MSG_CHAT để hiện thông báo nhỏ
+                strcpy(waitPkt.data, "Dang doi doi thu chap nhan...");
+                send(me->socket, &waitPkt, sizeof(Packet), 0);
+
+                // (Tùy chọn) Báo cho đối thủ biết
+                int opp_sock = (me->socket == s->p1_socket) ? s->p2_socket : s->p1_socket;
+                strcpy(waitPkt.data, "Doi thu muon tai dau!");
+                send(opp_sock, &waitPkt, sizeof(Packet), 0);
+            }
+            pthread_mutex_unlock(&lock);
+        }
+        else if (pkt.type == MSG_LOGOUT)
+        {
+            pthread_mutex_lock(&lock);
+
+            // 1. Xóa khỏi danh sách Online
+            remove_online_user(me);
+
+            // 2. Nếu đang treo máy tìm trận thì hủy luôn
+            if (waiting_client == me)
+            {
+                waiting_client = NULL;
+                printf("User %s da huy tim tran (Logout).\n", me->username);
+            }
+
+            // 3. Xóa thông tin session/user gắn với socket này
+            // Để socket này trở thành socket "vô danh" (như lúc mới kết nối)
+            memset(me->username, 0, 32);
+            me->session = NULL; // Đảm bảo không còn dính session nào
+
+            pthread_mutex_unlock(&lock);
+
+            printf("Socket %d da dang xuat (Logout).\n", me->socket);
+            // LƯU Ý: KHÔNG break; để vòng lặp tiếp tục lắng nghe (cho lần đăng nhập sau)
+        }
+        else if (pkt.type == MSG_LEAVE_ROOM)
+        {
+            pthread_mutex_lock(&lock);
+            handle_player_quit(me);
+            pthread_mutex_unlock(&lock);
+        }
     }
 
     // --- CLEANUP KHI NGẮT KẾT NỐI ---
@@ -292,7 +453,7 @@ void *client_handler(void *arg)
 
     // 3. Xử lý nếu đang trong trận (Thắng/Thua xử lý sau)
     // if (me->session) { ... }
-
+    handle_player_quit(me);
     pthread_mutex_unlock(&lock);
 
     close(me->socket);

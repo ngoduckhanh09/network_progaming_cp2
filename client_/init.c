@@ -22,7 +22,7 @@ void initSDL(void)
 		exit(1);
 	}
 
-	app.window = SDL_CreateWindow("Shooter 01", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, windowFlags);
+	app.window = SDL_CreateWindow("TicTacToe Online", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, windowFlags);
 
 	if (!app.window)
 	{

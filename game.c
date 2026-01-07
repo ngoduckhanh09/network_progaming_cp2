@@ -10,6 +10,8 @@ void init_game(GameSession *session)
         }
     }
     session->turn = 1; // Mặc định X đi trước
+    session->rematch_count = 0;
+    session->is_game_over = 0;
 }
 
 int check_win(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player_id)

@@ -10,6 +10,8 @@ typedef struct
     int turn;                          // Lượt hiện tại (1 hoặc 2)
     int p1_socket;                     // Socket người chơi 1 (X)
     int p2_socket;                     // Socket người chơi 2 (O)
+    int rematch_count;                 // <--- THÊM BIẾN NÀY (0: chưa ai, 1: có 1 người, 2: cả hai)
+    int is_game_over;                  // <--- THÊM DÒNG NÀY
 } GameSession;
 
 // Khởi tạo bàn cờ mới

@@ -3,14 +3,14 @@
 
 extern App app;
 
-// Màu sắc (Định nghĩa cho dễ sửa)
-SDL_Color COL_BG = {245, 245, 220, 255};		// Màu kem (nền bàn cờ)
-SDL_Color COL_GRID = {180, 180, 180, 255};		// Màu lưới xám nhạt
-SDL_Color COL_X = {220, 20, 60, 255};			// Đỏ thẫm
-SDL_Color COL_O = {30, 144, 255, 255};			// Xanh dương
+// Màu sắc
+SDL_Color COL_BG = {245, 245, 220, 255};		// Màu kem
+SDL_Color COL_GRID = {180, 180, 180, 255};		// Màu lưới
+SDL_Color COL_X = {220, 20, 60, 255};			// Đỏ
+SDL_Color COL_O = {30, 144, 255, 255};			// Xanh
 SDL_Color COL_BTN_IDLE = {70, 130, 180, 255};	// Xanh thép
-SDL_Color COL_BTN_HOVER = {100, 149, 237, 255}; // Xanh sáng hơn
-SDL_Color COL_TEXT = {50, 50, 50, 255};			// Chữ đen xám
+SDL_Color COL_BTN_HOVER = {100, 149, 237, 255}; // Xanh sáng
+SDL_Color COL_TEXT = {50, 50, 50, 255};			// Chữ đen
 
 // --- HÀM CƠ BẢN: VẼ CHỮ ---
 void drawText(char *text, int x, int y, int r, int g, int b)
@@ -27,6 +27,7 @@ void drawText(char *text, int x, int y, int r, int g, int b)
 	SDL_FreeSurface(surface);
 	SDL_DestroyTexture(texture);
 }
+
 // --- HÀM MỚI: Vẽ chữ tự động xuống dòng ---
 void drawTextWrapped(char *text, int x, int y, int maxWidth, int r, int g, int b)
 {
@@ -34,15 +35,15 @@ void drawTextWrapped(char *text, int x, int y, int maxWidth, int r, int g, int b
 		return;
 
 	char buffer[1024];
-	strcpy(buffer, text); // Copy chuỗi để xử lý
+	strcpy(buffer, text);
 
 	SDL_Color color = {r, g, b, 255};
 	int currentY = y;
 	int spaceW, h;
-	TTF_SizeText(app.font, " ", &spaceW, &h); // Lấy chiều cao dòng và độ rộng dấu cách
+	TTF_SizeText(app.font, " ", &spaceW, &h);
 
-	char line[256] = "";			  // Bộ đệm cho dòng hiện tại
-	char *word = strtok(buffer, " "); // Tách từng từ theo dấu cách
+	char line[256] = "";
+	char *word = strtok(buffer, " ");
 
 	while (word != NULL)
 	{
@@ -55,25 +56,24 @@ void drawTextWrapped(char *text, int x, int y, int maxWidth, int r, int g, int b
 		int w;
 		TTF_SizeText(app.font, tempLine, &w, NULL);
 
-		// Nếu dòng mới dài quá maxWidth -> In dòng cũ và xuống dòng
 		if (w > maxWidth)
 		{
 			drawText(line, x, currentY, r, g, b);
-			currentY += h + 5;	// Xuống dòng (cộng thêm 5px giãn dòng)
-			strcpy(line, word); // Bắt đầu dòng mới với từ hiện tại
+			currentY += h + 5;
+			strcpy(line, word);
 		}
 		else
 		{
-			strcpy(line, tempLine); // Vẫn đủ chỗ, gộp từ vào dòng
+			strcpy(line, tempLine);
 		}
 		word = strtok(NULL, " ");
 	}
-	// In nốt dòng cuối cùng
 	if (strlen(line) > 0)
 	{
 		drawText(line, x, currentY, r, g, b);
 	}
 }
+
 // Hàm vẽ chữ căn giữa
 void drawTextCentered(char *text, int centerX, int y, SDL_Color col)
 {
@@ -84,30 +84,25 @@ void drawTextCentered(char *text, int centerX, int y, SDL_Color col)
 	drawText(text, centerX - w / 2, y, col.r, col.g, col.b);
 }
 
-// --- HÀM VẼ NÚT ĐẸP HƠN ---
+// --- HÀM VẼ NÚT ---
 void drawButton(SDL_Rect rect, char *label, int mouseX, int mouseY)
 {
-	// Kiểm tra chuột
 	int hover = (mouseX >= rect.x && mouseX <= rect.x + rect.w &&
 				 mouseY >= rect.y && mouseY <= rect.y + rect.h);
 
-	// Vẽ bóng nút (tạo độ nổi)
 	SDL_Rect shadow = {rect.x + 3, rect.y + 3, rect.w, rect.h};
 	SDL_SetRenderDrawColor(app.renderer, 50, 50, 50, 100);
 	SDL_RenderFillRect(app.renderer, &shadow);
 
-	// Vẽ nền nút
 	if (hover)
 		SDL_SetRenderDrawColor(app.renderer, COL_BTN_HOVER.r, COL_BTN_HOVER.g, COL_BTN_HOVER.b, 255);
 	else
 		SDL_SetRenderDrawColor(app.renderer, COL_BTN_IDLE.r, COL_BTN_IDLE.g, COL_BTN_IDLE.b, 255);
 	SDL_RenderFillRect(app.renderer, &rect);
 
-	// Vẽ viền nút
 	SDL_SetRenderDrawColor(app.renderer, 255, 255, 255, 255);
 	SDL_RenderDrawRect(app.renderer, &rect);
 
-	// Căn giữa chữ
 	if (label && app.font)
 	{
 		int w, h;
@@ -119,38 +114,30 @@ void drawButton(SDL_Rect rect, char *label, int mouseX, int mouseY)
 // --- VẼ MENU ---
 void drawMainMenu(void)
 {
-	drawTextCentered("GAME CARO ONLINE", 450, 100, COL_X); // Tiêu đề đỏ
-
+	drawTextCentered("GAME CARO ONLINE", 450, 100, COL_X);
 	SDL_Rect btnLogin = {350, 200, 200, 50};
 	SDL_Rect btnReg = {350, 300, 200, 50};
 	SDL_Rect btnExit = {350, 400, 200, 50};
-
 	drawButton(btnLogin, "DANG NHAP", app.mouseX, app.mouseY);
 	drawButton(btnReg, "DANG KY", app.mouseX, app.mouseY);
 	drawButton(btnExit, "THOAT", app.mouseX, app.mouseY);
 }
 
-// --- VẼ MÀN HÌNH LOGIN/REGISTER ---
-// Hàm phụ: Vẽ 1 ô Input
+// --- VẼ INPUT ---
 void drawInputBox(int x, int y, int w, int h, char *label, char *text, int isFocus, int isPassword)
 {
-	// Vẽ nhãn (Label)
 	drawText(label, x, y - 25, 200, 200, 200);
-
-	// Vẽ khung
 	SDL_Rect rect = {x, y, w, h};
 	if (isFocus)
-		SDL_SetRenderDrawColor(app.renderer, 0, 255, 0, 255); // Viền xanh lá khi focus
+		SDL_SetRenderDrawColor(app.renderer, 0, 255, 0, 255);
 	else
-		SDL_SetRenderDrawColor(app.renderer, 100, 100, 100, 255); // Viền xám thường
+		SDL_SetRenderDrawColor(app.renderer, 100, 100, 100, 255);
 	SDL_RenderDrawRect(app.renderer, &rect);
 
-	// Vẽ nội dung bên trong
 	if (text && strlen(text) > 0)
 	{
 		if (isPassword)
 		{
-			// Thay thế bằng dấu *
 			char mask[32];
 			memset(mask, '*', strlen(text));
 			mask[strlen(text)] = '\0';
@@ -165,43 +152,34 @@ void drawInputBox(int x, int y, int w, int h, char *label, char *text, int isFoc
 
 void drawAuthScreen(int isRegister)
 {
-	// Tiêu đề
 	char *title = isRegister ? "DANG KY TAI KHOAN" : "DANG NHAP";
 	drawTextCentered(title, 450, 50, (SDL_Color){255, 255, 0, 255});
 
-	// 1. Ô Username (Focus = 0)
 	drawInputBox(300, 150, 300, 40, "Ten dang nhap:", app.inputUsername, (app.inputFocus == 0), 0);
-
-	// 2. Ô Password (Focus = 1)
 	drawInputBox(300, 230, 300, 40, "Mat khau:", app.inputPassword, (app.inputFocus == 1), 1);
 
 	int btnY = 320;
-
-	// 3. Ô Player Name (Chỉ hiện khi Đăng ký, Focus = 2)
 	if (isRegister)
 	{
 		drawInputBox(300, 310, 300, 40, "Ten trong game:", app.inputName, (app.inputFocus == 2), 0);
-		btnY = 400; // Đẩy nút xuống thấp hơn
+		btnY = 400;
 	}
 
-	// Nút Action
 	SDL_Rect btn = {350, btnY, 200, 40};
 	char *btnLabel = isRegister ? "DANG KY NGAY" : "VAO GAME";
 	drawButton(btn, btnLabel, app.mouseX, app.mouseY);
 
-	// Hướng dẫn
 	drawTextCentered("(Dung TAB de chuyen o nhap)", 450, btnY + 50, (SDL_Color){150, 150, 150, 255});
 	drawText("<< ESC: Quay lai", 50, 550, 100, 100, 100);
 
-	// Thông báo lỗi
 	if (strlen(app.message) > 0)
 		drawTextCentered(app.message, 450, btnY + 90, (SDL_Color){255, 100, 100, 255});
 }
+
 // --- VẼ LOBBY ---
 void drawLobby(void)
 {
-	drawTextCentered("SANH CHO (LOBBY)", 450, 100, (SDL_Color){255, 215, 0, 255}); // Vàng kim
-
+	drawTextCentered("", 450, 100, (SDL_Color){255, 215, 0, 255});
 	SDL_Rect btnFind = {350, 200, 200, 50};
 	SDL_Rect btnScore = {350, 300, 200, 50};
 	SDL_Rect btnBack = {350, 400, 200, 50};
@@ -214,15 +192,13 @@ void drawLobby(void)
 		drawTextCentered(app.message, 450, 500, (SDL_Color){0, 255, 0, 255});
 }
 
-// --- VẼ BÀN CỜ (Đã cải tiến) ---
+// --- VẼ BÀN CỜ ---
 void drawBoard(void)
 {
-	// 1. Vẽ nền bàn cờ
 	SDL_SetRenderDrawColor(app.renderer, COL_BG.r, COL_BG.g, COL_BG.b, 255);
 	SDL_Rect boardRect = {0, 0, BOARD_SIZE * CELL_SIZE, BOARD_SIZE * CELL_SIZE};
 	SDL_RenderFillRect(app.renderer, &boardRect);
 
-	// 2. Vẽ lưới
 	SDL_SetRenderDrawColor(app.renderer, COL_GRID.r, COL_GRID.g, COL_GRID.b, 255);
 	for (int i = 0; i <= BOARD_SIZE; i++)
 	{
@@ -230,60 +206,47 @@ void drawBoard(void)
 		SDL_RenderDrawLine(app.renderer, i * CELL_SIZE, 0, i * CELL_SIZE, BOARD_SIZE * CELL_SIZE);
 	}
 
-	// 3. Vẽ quân cờ (Căn giữa ô)
 	for (int i = 0; i < BOARD_SIZE; i++)
 	{
 		for (int j = 0; j < BOARD_SIZE; j++)
 		{
-			if (app.board[i][j] == 1) // X
+			if (app.board[i][j] == 1)
 				drawText("X", j * CELL_SIZE + 7, i * CELL_SIZE + 2, COL_X.r, COL_X.g, COL_X.b);
-			else if (app.board[i][j] == 2) // O
+			else if (app.board[i][j] == 2)
 				drawText("O", j * CELL_SIZE + 7, i * CELL_SIZE + 2, COL_O.r, COL_O.g, COL_O.b);
 		}
 	}
 }
-// --- HÀM VẼ THÔNG TIN NGƯỜI DÙNG (CẬP NHẬT) ---
+
+// --- SỬA: CHỈ VẼ Ở LOBBY/WAITING ---
 void drawUserInfo(void)
 {
-	if (app.state == STATE_MENU || app.state == STATE_LOGIN_INPUT || app.state == STATE_REGISTER_INPUT)
-		return;
-
-	char buffer[64];
-	sprintf(buffer, "User: %s | Diem: %d", app.inputUsername, app.score); // <--- HIỆN ĐIỂM
-
+	// Chỉ hiện ở Lobby và Waiting (Game sẽ có panel riêng)
 	if (app.state == STATE_LOBBY || app.state == STATE_WAITING)
 	{
+		char buffer[64];
+		sprintf(buffer, "User: %s | Diem: %d", app.inputUsername, app.score);
 		drawText(buffer, 10, 10, 255, 255, 0);
 	}
-	else if (app.state == STATE_GAME || app.state == STATE_GAME_OVER)
-	{
-		int rightPanelX = BOARD_SIZE * CELL_SIZE + 20;
-		drawText(buffer, rightPanelX, 550, 255, 255, 0);
-	}
 }
+
 void drawLeaderboard(void)
 {
 	drawTextCentered("BANG XEP HANG (TOP 10)", 450, 50, (SDL_Color){255, 215, 0, 255});
-
-	// Vẽ nội dung BXH (Server gửi về dạng chuỗi nhiều dòng)
-	// SDL_ttf không hỗ trợ xuống dòng tự động (\n), ta cần tách dòng thủ công
 	int y = 120;
 	char temp[1024];
 	strcpy(temp, app.leaderboard);
-
 	char *line = strtok(temp, "\n");
 	while (line != NULL)
 	{
 		drawTextCentered(line, 450, y, (SDL_Color){255, 255, 255, 255});
-		y += 40; // Xuống dòng
+		y += 40;
 		line = strtok(NULL, "\n");
 	}
-
-	// Nút Quay lại
 	SDL_Rect btnBack = {350, 500, 200, 50};
 	drawButton(btnBack, "QUAY LAI", app.mouseX, app.mouseY);
 }
-// --- PREPARE SCENE ---
+
 // --- PREPARE SCENE ---
 void prepareScene(void)
 {
@@ -303,49 +266,81 @@ void prepareScene(void)
 		break;
 	case STATE_LOBBY:
 		drawLobby();
-		drawUserInfo(); // <--- THÊM VÀO ĐÂY
+		drawUserInfo();
 		break;
+
+	// --- PHẦN QUAN TRỌNG: CẬP NHẬT GIAO DIỆN GAME ---
 	case STATE_GAME:
 	case STATE_GAME_OVER:
 		drawBoard();
-		drawUserInfo(); // <--- THÊM VÀO ĐÂY
 
-		// --- Panel thông tin bên phải ---
+		// --- VẼ PANEL THÔNG TIN BÊN PHẢI ---
 		int rightPanelX = BOARD_SIZE * CELL_SIZE + 20;
+		char buffer[100];
+
+		// 1. THÔNG TIN CỦA BẠN
+		SDL_Color colorMe = (app.player_id == 1) ? COL_X : COL_O; // Mình là X thì đỏ, O thì xanh
+		drawText("--- BAN ---", rightPanelX, 30, colorMe.r, colorMe.g, colorMe.b);
+
+		sprintf(buffer, "%s %s", app.inputUsername, (app.player_id == 1) ? "(X)" : "(O)");
+		drawText(buffer, rightPanelX, 60, 255, 255, 255);
+
+		sprintf(buffer, "Diem: %d", app.score);
+		drawText(buffer, rightPanelX, 90, 255, 255, 255);
+
+		// 2. THÔNG TIN ĐỐI THỦ (Cách ra một chút)
+		SDL_Color colorOpp = (app.player_id == 1) ? COL_O : COL_X; // Ngược lại với mình
+		drawText("--- DOI THU ---", rightPanelX, 150, colorOpp.r, colorOpp.g, colorOpp.b);
+
+		sprintf(buffer, "%s %s", app.opponentName, (app.player_id == 1) ? "(O)" : "(X)");
+		drawText(buffer, rightPanelX, 180, 255, 255, 255);
+
+		sprintf(buffer, "Diem: %d", app.opponentScore);
+		drawText(buffer, rightPanelX, 210, 255, 255, 255);
+
+		// 3. TRẠNG THÁI / KẾT QUẢ
+		int statusY = 300; // Vị trí Y bắt đầu vẽ trạng thái
 
 		if (app.state == STATE_GAME_OVER)
 		{
-			drawText("KET THUC!", rightPanelX, 50, 255, 0, 0);
-			int maxW = 260; // Chiều rộng tối đa cho dòng chữ (ước lượng)
-			drawTextWrapped(app.message, rightPanelX, 100, maxW, 255, 255, 255);
-			SDL_Rect btnExit = {rightPanelX, 200, 160, 40};
-			drawButton(btnExit, "VE SANH", app.mouseX, app.mouseY);
-		}
-		else
-		{
-			char buf[64];
-			sprintf(buf, "Ban la: %s", (app.player_id == 1) ? "X (Do)" : "O (Xanh)");
-			drawText(buf, rightPanelX, 30, 255, 255, 255);
+			drawText("KET THUC!", rightPanelX, statusY, 255, 0, 0);
+			drawTextWrapped(app.message, rightPanelX, statusY + 40, 260, 255, 255, 255);
 
+			// Nút điều khiển
+			SDL_Rect btnExit = {rightPanelX, 450, 160, 40};
+			drawButton(btnExit, "VE SANH", app.mouseX, app.mouseY);
+
+			SDL_Rect btnRematch = {rightPanelX, 500, 160, 40};
+			drawButton(btnRematch, "TAI DAU", app.mouseX, app.mouseY);
+		}
+		else // ĐANG CHƠI
+		{
 			if (app.turn == app.player_id)
-				drawText("-> LUOT CUA BAN", rightPanelX, 80, 0, 255, 0);
+				drawText("-> LUOT CUA BAN", rightPanelX, statusY, 0, 255, 0);
 			else
-				drawText("-> Doi doi thu...", rightPanelX, 80, 200, 200, 200);
+				drawText("-> Doi doi thu...", rightPanelX, statusY, 200, 200, 200);
+
+			// Nút chat/hàng nếu muốn thêm sau này...
+			SDL_Rect btnQuit = {rightPanelX, 500, 160, 40};
+			// Vẽ nút với nhãn "THOAT TRAN" (hoặc "DAU HANG")
+			drawButton(btnQuit, "THOAT TRAN", app.mouseX, app.mouseY);
 		}
 		break;
+		// ----------------------------------------------------
 
 	case STATE_WAITING:
 		drawTextCentered("DANG TIM DOI THU...", 450, 250, (SDL_Color){0, 255, 255, 255});
 		SDL_Rect btnCancel = {350, 350, 200, 50};
 		drawButton(btnCancel, "HUY TIM", app.mouseX, app.mouseY);
-		drawUserInfo(); // <--- THÊM VÀO ĐÂY
+		drawUserInfo();
 		break;
-	case STATE_LEADERBOARD: // <--- THÊM CASE NÀY
+	case STATE_LEADERBOARD:
 		drawLeaderboard();
 		drawUserInfo();
 		break;
 	}
 }
+
 void presentScene(void)
 {
 	SDL_RenderPresent(app.renderer);
