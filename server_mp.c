@@ -303,7 +303,7 @@ void *client_handler(void *arg)
                 if (loser_name)
                 {
                     s->is_game_over = 1; // <--- THÊM DÒNG NÀY: Đánh dấu game đã có kết quả
-                    update_game_result(me->username, loser_name);
+                    // update_game_result(me->username, loser_name);
                     int old_winner_score = get_user_score(me->username);
                     int old_loser_score = get_user_score(loser_name);
 
@@ -377,19 +377,55 @@ void *client_handler(void *arg)
                 s->turn = 1;          // Mặc định người chơi 1 đi trước (hoặc random tùy bạn)
                 s->rematch_count = 0; // Reset đếm cho ván sau
                 s->is_game_over = 0;
-                // 2. Thông báo bắt đầu lại cho cả 2
-                Packet startPkt;
-                startPkt.type = MSG_START;
+                // // 2. Thông báo bắt đầu lại cho cả 2
+                // Packet startPkt;
+                // startPkt.type = MSG_START;
 
-                // Gửi cho P1
-                startPkt.player_id = 1;
-                strcpy(startPkt.data, "Ván mới bắt đầu! Bạn là X");
-                send(s->p1_socket, &startPkt, sizeof(Packet), 0);
+                // // Gửi cho P1
+                // startPkt.player_id = 1;
+                // strcpy(startPkt.data, "Ván mới bắt đầu! Bạn là X");
+                // send(s->p1_socket, &startPkt, sizeof(Packet), 0);
 
-                // Gửi cho P2
-                startPkt.player_id = 2;
-                strcpy(startPkt.data, "Ván mới bắt đầu! Bạn là O");
-                send(s->p2_socket, &startPkt, sizeof(Packet), 0);
+                // // Gửi cho P2
+                // startPkt.player_id = 2;
+                // strcpy(startPkt.data, "Ván mới bắt đầu! Bạn là O");
+                // send(s->p2_socket, &startPkt, sizeof(Packet), 0);
+                ClientInfo *p1 = NULL;
+                ClientInfo *p2 = NULL;
+                for (int i = 0; i < MAX_CLIENTS; i++)
+                {
+                    if (online_clients[i])
+                    {
+                        if (online_clients[i]->socket == s->p1_socket)
+                            p1 = online_clients[i];
+                        if (online_clients[i]->socket == s->p2_socket)
+                            p2 = online_clients[i];
+                    }
+                }
+
+                if (p1 && p2)
+                {
+                    int score1 = get_user_score(p1->username);
+                    int score2 = get_user_score(p2->username);
+
+                    Packet startPkt;
+                    memset(&startPkt, 0, sizeof(Packet));
+                    startPkt.type = MSG_START;
+
+                    // --- GỬI CHO P1 (X) ---
+                    // Gửi thông tin của P2 (Đối thủ là O)
+                    startPkt.player_id = 1;
+                    sprintf(startPkt.data, "%s %d", p2->username, score2);
+                    send(s->p1_socket, &startPkt, sizeof(Packet), 0);
+
+                    // --- GỬI CHO P2 (O) ---
+                    // Gửi thông tin của P1 (Đối thủ là X)
+                    startPkt.player_id = 2;
+                    sprintf(startPkt.data, "%s %d", p1->username, score1);
+                    send(s->p2_socket, &startPkt, sizeof(Packet), 0);
+
+                    printf("Tai dau: %s vs %s\n", p1->username, p2->username);
+                }
             }
             else
             {
